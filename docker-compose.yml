@@ -1,0 +1,53 @@
+services:
+  # 1. ML Backend Service
+  ml-backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kca-ml-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # เชื่อมโฟลเดอร์ models เข้าไป เผื่ออัปเดตไฟล์ .pkl จะได้ไม่ต้อง Build ใหม่
+      - ./backend/models:/app/models 
+      - ./backend/main.py:/app/main.py
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # 2. Frontend Service (เตรียมโครงไว้สำหรับ React/Next.js ในอนาคต)
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    # 🎯 สิ่งที่เพิ่ม: เปลี่ยนจากรัน npm start (Production) เป็น npm run dev (Development)
+    command: npm run dev
+    depends_on:
+      - ml-backend
+
+  # 3. Database Service (เตรียมโครงไว้สำหรับ PostgreSQL ในอนาคต)
+  db:
+    # ใช้ Image ที่เป็น Postgres และติดตั้งส่วนขยาย pgvector มาให้แล้ว
+    image: pgvector/pgvector:pg15
+    container_name: kca-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: kca_admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: kca_database
+    ports:
+      - "5432:5432" # เปิดพอร์ตมาตรฐานของ Postgres
+    volumes:
+      # เก็บข้อมูลไว้ในเครื่องเราจริงๆ เวลาปิด Docker ข้อมูลจะได้ไม่หาย
+      - pgdata:/var/lib/postgresql/data
+      # นำสคริปต์ตั้งต้นไปรันอัตโนมัติเมื่อสร้าง Database ครั้งแรก
+      - ./db-init:/docker-entrypoint-initdb.d
+
+volumes:
+  pgdata:

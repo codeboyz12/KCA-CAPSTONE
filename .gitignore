@@ -1,0 +1,40 @@
+# ========================
+# OS Files
+# ========================
+.DS_Store
+Thumbs.db
+*.swp
+
+# ========================
+# Docker & Database
+# ========================
+pgdata/
+.dockerignore
+
+# ========================
+# Backend (Python / FastAPI)
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+.venv
+*.log
+
+# ละเว้นไฟล์ Data ที่มีขนาดใหญ่ (ให้รันสร้างใหม่เอา)
+backend/models/*.csv
+backend/models/*.npy
+
+# ========================
+# Frontend (Next.js / Node)
+# ========================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
