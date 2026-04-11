@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Rocket } from 'lucide-react';
 
 export default function ActionMenu() {
@@ -8,10 +9,12 @@ export default function ActionMenu() {
           <h2 className="text-xl font-bold text-[#061E47]">เริ่มต้นใช้งาน AI Predictor</h2>
           <p className="text-[#1F4591] text-sm">ประเมินโครงสร้างแคมเปญของคุณก่อนลงสนามจริง</p>
         </div>
-        <button className="bg-[#1F4591] text-white hover:bg-[#061E47] px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center gap-3 shadow-md hover:shadow-lg">
-          <Rocket className="w-6 h-6 text-[#68A4F1]" />
-          ประเมินความน่าจะเป็นของงาน
-        </button>
+        <Link href="/predict">
+          <button className="bg-[#1F4591] text-white hover:bg-[#061E47] px-8 py-4 rounded-xl font-bold text-lg transition-all flex items-center gap-3 shadow-md hover:shadow-lg">
+            <Rocket className="w-6 h-6 text-[#68A4F1]" />
+            ประเมินความน่าจะเป็นของงาน
+          </button>
+        </Link>
       </div>
     </div>
   );
