@@ -99,12 +99,14 @@ From the project root directory, run:
 docker-compose up -d
 ```
 
-This will spin up **3 containers**:
+This will spin up **5 containers**:
 
 | Container | Service | Port |
 |---|---|---|
 | `db` | PostgreSQL + pgvector | `5432` |
+| `redis` | Celery broker/result backend | `6379` |
 | `ml-backend` | FastAPI + ML Models | `8000` |
+| `ml-worker` | Celery worker for ML jobs | - |
 | `frontend` | Next.js Web UI | `3000` |
 
 Wait until all containers show a **Running** status before proceeding.
@@ -152,9 +154,44 @@ All endpoints are documented interactively at `http://localhost:8000/docs`.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/predict` | Predict campaign success probability |
-| `POST` | `/similar` | Find semantically similar past campaigns |
-| `GET` | `/health` | Service health check |
+| `POST` | `/api/v1/predict` | Predict campaign success probability (sync by default) |
+| `POST` | `/api/v1/recommend` | Recommend similar projects (sync by default) |
+| `POST` | `/api/v1/predict?async_mode=true` | Queue prediction as Celery job |
+| `POST` | `/api/v1/recommend?async_mode=true&top_k=6` | Queue recommendation as Celery job |
+| `GET` | `/api/v1/jobs/{task_id}` | Check job status/result |
+| `GET` | `/api/v1/health` | Service health check |
+
+### Job Queue Example (Celery)
+
+Submit async prediction job:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/predict?async_mode=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "category": "Technology",
+    "goal_usd": 50000,
+    "duration_days": 30,
+    "launch_month": 4
+  }'
+```
+
+Sample response:
+
+```json
+{
+  "success": true,
+  "task_id": "d4a8f8df-3f77-4d20-86a1-57d2b2f0f4af",
+  "status": "PENDING",
+  "status_endpoint": "/api/v1/jobs/d4a8f8df-3f77-4d20-86a1-57d2b2f0f4af"
+}
+```
+
+Poll job status:
+
+```bash
+curl "http://localhost:8000/api/v1/jobs/d4a8f8df-3f77-4d20-86a1-57d2b2f0f4af"
+```
 
 ### Example Request — `/predict`
 

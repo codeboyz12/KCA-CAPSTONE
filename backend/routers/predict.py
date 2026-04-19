@@ -1,29 +1,25 @@
-from fastapi import APIRouter, HTTPException
-import pandas as pd
+from fastapi import APIRouter, HTTPException, Query
+
 from schemas.campaign import CampaignInput
-from ml.state import ml
+from ml.service import predict_campaign_payload
+from tasks.ml_tasks import predict_campaign_task
 
 router = APIRouter(prefix="/api/v1", tags=["Prediction"])
 
 @router.post("/predict")
-def predict_campaign(data: CampaignInput):
+def predict_campaign(data: CampaignInput, async_mode: bool = Query(False)):
     try:
-        cat_enc  = ml.encoder.transform([data.category])[0]
-        input_df = pd.DataFrame(
-            [[cat_enc, data.goal_usd, data.duration_days, data.launch_month]],
-            columns=["category_encoded", "goal_usd", "duration_days", "launch_month"],
-        )
+        payload = data.model_dump()
 
-        prob_success     = float(ml.clf_model.predict_proba(input_df)[0][1])
-        expected_pledged = float(ml.reg_model.predict(input_df)[0])
+        if async_mode:
+            task = predict_campaign_task.delay(payload)
+            return {
+                "success": True,
+                "task_id": task.id,
+                "status": "PENDING",
+                "status_endpoint": f"/api/v1/jobs/{task.id}",
+            }
 
-        return {
-            "success": True,
-            "prediction": {
-                "probability_percentage": round(prob_success * 100, 2),
-                "expected_pledged_usd":   round(expected_pledged, 2),
-                "is_viable":              prob_success > 0.5,
-            },
-        }
+        return predict_campaign_payload(payload)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

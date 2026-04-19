@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from core.lifespan import lifespan
-from routers import health, metadata, predict, recommend, projects
+from routers import health, jobs, metadata, predict, recommend, projects
 
 app = FastAPI(
     title="KCA ML Engine API",
@@ -24,5 +24,6 @@ for router in [
     predict.router,
     recommend.router,
     projects.router,
+    jobs.router,
 ]:
     app.include_router(router)

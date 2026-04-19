@@ -9,5 +9,6 @@ class MLModels:
     scaler:         Any  = None
     embedder:       Any  = None
     category_prior: dict = field(default_factory=dict)
+    resources_loaded: bool = False
 
 ml = MLModels()
