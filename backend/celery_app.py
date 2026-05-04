@@ -5,7 +5,7 @@ celery_app = Celery(
     "kca_worker",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["tasks.ml_tasks"],
+    include=["tasks.ml_tasks", "tasks.retrain_task"],
 )
 
 celery_app.conf.update(

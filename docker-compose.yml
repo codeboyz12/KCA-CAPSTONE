@@ -1,7 +1,7 @@
 services:
   # 1. ML Backend Service
   ml-backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: kca-ml-api
@@ -76,5 +76,27 @@ services:
     ports:
       - "6379:6379"
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: kca-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5000
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  mlflow_data:
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1450"
