@@ -100,10 +100,10 @@ def retrain_model_task(self):
     self.update_state(state="STARTED", meta={"step": "evaluating"})
     y_prob = model.predict_proba(X_test)[:, 1]
     y_pred = (y_prob >= 0.5).astype(int)
-    auc    = round(roc_auc_score(y_test, y_prob), 4)
-    f1     = round(f1_score(y_test, y_pred), 4)
+    auc    = round(float(roc_auc_score(y_test, y_prob)), 4)
+    f1     = round(float(f1_score(y_test, y_pred)), 4)
 
-    gate_passed = auc >= AUC_THRESHOLD and f1 >= F1_THRESHOLD
+    gate_passed = bool(auc >= AUC_THRESHOLD and f1 >= F1_THRESHOLD)
 
     with mlflow.start_run() as run:
         mlflow.log_params({**params, "n_samples": n_samples, "train_size": len(X_train)})
