@@ -1,7 +1,7 @@
 services:
   # 1. ML Backend Service
   ml-backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: kca-ml-api
@@ -28,6 +28,7 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - GIT_PYTHON_REFRESH=quiet
     command: celery -A celery_app.celery_app worker --loglevel=info --pool=solo
     depends_on:
       - db
@@ -76,5 +77,27 @@ services:
     ports:
       - "6379:6379"
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    container_name: kca-mlflow
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5000
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  mlflow_data:
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: "1450"
