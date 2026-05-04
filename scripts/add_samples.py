@@ -32,7 +32,7 @@ def generate_sample(category: str) -> tuple:
     state_binary  = 1 if random.random() < SUCCESS_RATE.get(category, 0.35) else 0
     project_id   = str(uuid.uuid4())
     name         = f"Sample {category.title()} Project {project_id[:8]}"
-    return (project_id, name, category, goal_usd, duration_days, state_binary)
+    return (project_id, name, category, goal_usd, duration_days, state_binary, "sample")
 
 
 def main():
@@ -59,12 +59,14 @@ def main():
     execute_values(
         cur,
         """
-        INSERT INTO projects (project_id, name, category, goal_usd, duration_days, state_binary)
+        INSERT INTO projects (project_id, name, category, goal_usd, duration_days, state_binary, source)
         VALUES %s
         ON CONFLICT (project_id) DO NOTHING;
         """,
         samples,
     )
+    # refresh materialized view so category_stats stays current
+    cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY category_stats;")
     conn.commit()
 
     cur.execute("SELECT COUNT(*) FROM projects;")
