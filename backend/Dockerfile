@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y libgomp1 && rm -rf /var/lib/apt/lists/*
 
 # ก๊อปปี้ไฟล์ requirements และติดตั้ง Library
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
 
 # ก๊อปปี้โค้ดและโมเดลทั้งหมดเข้าไปใน Container
 COPY . .

@@ -9,10 +9,27 @@ export async function fetchProjects(page: number, limit = 12): Promise<ProjectsR
   return res.json();
 }
 
-export async function fetchMetadata(): Promise<{ available_categories: string[] }> {
+export async function fetchMetadata(): Promise<{
+  available_categories: string[];
+  available_main_categories: string[];
+}> {
   const res = await fetch(`${API_BASE}/api/v1/metadata`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
+}
+
+export async function fetchMainCategories(): Promise<string[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/metadata/main-categories`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.main_categories;
+    }
+  } catch {
+    // endpoint not yet available
+  }
+  const meta = await fetchMetadata();
+  return meta.available_main_categories ?? [];
 }
 
 export async function predictCampaign(payload: CampaignPayload): Promise<PredictResponse> {

@@ -5,7 +5,7 @@ interface Props {
 }
 
 export default function PredictResult({ result }: Props) {
-  const { probability_percentage, expected_pledged_usd, is_viable } = result.prediction;
+  const { probability_percentage, is_viable } = result.prediction;
 
   const color = probability_percentage >= 70
     ? 'text-emerald-600'
@@ -44,14 +44,6 @@ export default function PredictResult({ result }: Props) {
           }`}
           style={{ width: `${probability_percentage}%` }}
         />
-      </div>
-
-      {/* Expected amount */}
-      <div className="bg-white/60 rounded-xl p-4 flex justify-between items-center">
-        <span className="text-sm text-[#1F4591] font-medium">คาดว่าจะระดมทุนได้</span>
-        <span className="text-xl font-bold text-[#061E47]">
-          ${expected_pledged_usd.toLocaleString()}
-        </span>
       </div>
 
       {/* Verdict */}
