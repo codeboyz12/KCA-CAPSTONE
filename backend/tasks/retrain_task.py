@@ -16,7 +16,7 @@ from db.session import get_db_connection
 from ml.state import ml
 
 AUC_THRESHOLD = 0.65
-F1_THRESHOLD  = 0.60
+F1_THRESHOLD  = 0.55
 
 
 def _load_data_from_db() -> pd.DataFrame:

@@ -28,6 +28,7 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - GIT_PYTHON_REFRESH=quiet
     command: celery -A celery_app.celery_app worker --loglevel=info --pool=solo
     depends_on:
       - db
@@ -80,7 +81,7 @@ services:
     image: ghcr.io/mlflow/mlflow:v2.13.0
     container_name: kca-mlflow
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       - mlflow_data:/mlflow
     command: >
