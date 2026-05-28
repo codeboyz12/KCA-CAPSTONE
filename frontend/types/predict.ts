@@ -15,16 +15,34 @@ export interface CampaignPayload {
   deadline_minute: number;
 }
 
+export interface ShapFactor {
+  feature:   string;
+  direction: 'up' | 'down';
+  impact:    number;
+}
+
 export interface PredictResponse {
   success: boolean;
   prediction: {
     probability_percentage: number;
     is_viable:              boolean;
   };
+  category_stats: {
+    success_rate:    number;
+    median_goal_usd: number;
+    total_projects:  number;
+    goal_rank_pct:   number;
+  };
+  competition: {
+    n_competitors: number;
+    percentile:    number;
+    tier:          'low' | 'medium' | 'high';
+  };
+  shap_factors: ShapFactor[];
 }
 
 export interface SimilarProject {
-  project_id:       number;
+  project_id:       string;
   name:             string;
   category:         string;
   goal_usd:         number;

@@ -44,24 +44,30 @@ export default function PredictForm({ onSubmit, loading }: Props) {
   const [mainCategories, setMainCategories] = useState<string[]>([]);
   const [form, setForm] = useState<CampaignPayload>(DEFAULT);
 
+  const [metaError, setMetaError] = useState<string | null>(null);
+
   useEffect(() => {
-    Promise.all([fetchMetadata(), fetchMainCategories()]).then(([meta, mainCats]) => {
-      const cats = meta.available_categories ?? [];
-      setCategories(cats);
-      setMainCategories(mainCats);
-      setForm((prev) => ({
-        ...prev,
-        category:      cats[0]      ?? '',
-        main_category: mainCats[0]  ?? '',
-      }));
-    });
+    Promise.all([fetchMetadata(), fetchMainCategories()])
+      .then(([meta, mainCats]) => {
+        const cats = meta.available_categories ?? [];
+        setCategories(cats);
+        setMainCategories(mainCats);
+        setForm((prev) => ({
+          ...prev,
+          category:      cats[0]      ?? '',
+          main_category: mainCats[0]  ?? '',
+        }));
+      })
+      .catch(() => setMetaError('ไม่สามารถโหลดหมวดหมู่ได้ กรุณารีเฟรชหน้า'));
   }, []);
+
+  const STRING_FIELDS = new Set(['name', 'category', 'main_category']);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({
       ...prev,
-      [name]: name === 'name' ? value : Number(value),
+      [name]: STRING_FIELDS.has(name) ? value : Number(value),
     }));
   };
 
@@ -78,6 +84,12 @@ export default function PredictForm({ onSubmit, loading }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-[#68A4F1]/20 p-8 space-y-7">
+
+      {metaError && (
+        <p className="text-red-500 text-sm text-center bg-red-50 rounded-xl px-4 py-3 border border-red-200">
+          {metaError}
+        </p>
+      )}
 
       {/* ── Section 1: Campaign Info ── */}
       <div className="space-y-4">

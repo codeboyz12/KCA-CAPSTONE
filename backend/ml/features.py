@@ -164,4 +164,15 @@ def build_features(data: dict, artifacts: dict) -> pd.DataFrame:
     for col in top15:
         if col not in result.columns:
             result[col] = 0.0
-    return result[top15].fillna(0).astype(float)
+
+    insights = {
+        "cat_success_rate":   round(float(row.get("cat_success_rate",  0)),    4),
+        "goal_rank_in_cat":   round(float(row.get("goal_rank_in_cat",  0.5)),  4),
+        "mean_goal_usd":      round(float(np.expm1(row.get("mean_goal_in_cat",   0))), 2),
+        "median_goal_usd":    round(float(np.expm1(row.get("median_goal_in_cat", 0))), 2),
+        "cat_project_count":  int(row.get("cat_project_count", 0)),
+        "n_competitors":      int(row.get("n_competitors", 0)),
+        "competition_pct":    round(float(row.get("competition_pct", 0.5)), 4),
+    }
+
+    return result[top15].fillna(0).astype(float), insights
