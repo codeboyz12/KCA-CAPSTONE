@@ -1,4 +1,4 @@
-import type { ProjectsResponse } from '@/types/project';
+import type { ProjectsResponse, CategoryStat } from '@/types/project';
 import type { CampaignPayload, PredictResponse, RecommendResponse } from '@/types/predict';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -9,10 +9,34 @@ export async function fetchProjects(page: number, limit = 12): Promise<ProjectsR
   return res.json();
 }
 
-export async function fetchMetadata(): Promise<{ available_categories: string[] }> {
+export async function searchProjects(q: string, page: number, limit = 12): Promise<ProjectsResponse> {
+  const params = new URLSearchParams({ q, page: String(page), limit: String(limit) });
+  const res = await fetch(`${API_BASE}/api/v1/search?${params}`);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMetadata(): Promise<{
+  available_categories: string[];
+  available_main_categories: string[];
+}> {
   const res = await fetch(`${API_BASE}/api/v1/metadata`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
+}
+
+export async function fetchMainCategories(): Promise<string[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/metadata/main-categories`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.main_categories;
+    }
+  } catch {
+    // endpoint not yet available
+  }
+  const meta = await fetchMetadata();
+  return meta.available_main_categories ?? [];
 }
 
 export async function predictCampaign(payload: CampaignPayload): Promise<PredictResponse> {
@@ -36,4 +60,11 @@ export async function getRecommendations(
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
+}
+
+export async function fetchCategoryStats(): Promise<CategoryStat[]> {
+  const res = await fetch(`${API_BASE}/api/v1/stats/categories`);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  const data = await res.json();
+  return data.data;
 }
