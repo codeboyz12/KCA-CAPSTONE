@@ -124,12 +124,7 @@ docker compose up -d
 docker compose ps
 ```
 
--### Step 2 — Import Data *(First-time only)*
--
--```bash
--pip install psycopg2-binary pandas numpy
--python migrate_to_db.py
--```
+
 ### Step 2 — Import Data & Migrate DB *(First-time only)*
 
 1. **Import historical data** into the database:
