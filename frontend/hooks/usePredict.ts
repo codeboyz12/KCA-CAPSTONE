@@ -18,19 +18,27 @@ export function usePredict() {
     setPrediction(null);
     setRecommend(null);
 
+    let predictRes: PredictResponse;
     try {
-      // เรียก 2 APIs พร้อมกัน
-      const [predictRes, recommendRes] = await Promise.all([
-        predictCampaign(payload),
-        getRecommendations(payload, 6),
-      ]);
-      setPrediction(predictRes);
-      setRecommend(recommendRes);
+      predictRes = await predictCampaign(payload);
     } catch (e) {
-      setError('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
-    } finally {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`วิเคราะห์แคมเปญไม่สำเร็จ (${msg})`);
       setLoading(false);
+      return;
     }
+
+    setPrediction(predictRes);
+
+    // Recommendations are non-critical — failure doesn't hide the prediction result
+    try {
+      const recommendRes = await getRecommendations(payload, 6);
+      setRecommend(recommendRes);
+    } catch {
+      // silently skip
+    }
+
+    setLoading(false);
   };
 
   return { submit, loading, error, prediction, recommend };

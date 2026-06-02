@@ -1,11 +1,38 @@
 'use client';
 
+import { Suspense, useMemo } from 'react';
 import { Rocket } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import PredictForm     from '@/components/predict/PredictForm';
 import PredictResult   from '@/components/predict/PredictResult';
 import SimilarProjects from '@/components/predict/SimilarProjects';
 import { usePredict }  from '@/hooks/usePredict';
+import type { CampaignPayload } from '@/types/predict';
+
+function FormSection({
+  onSubmit,
+  loading,
+}: {
+  onSubmit: (payload: CampaignPayload) => void;
+  loading: boolean;
+}) {
+  const searchParams = useSearchParams();
+
+  const initialValues = useMemo((): Partial<CampaignPayload> | undefined => {
+    const category     = searchParams.get('category');
+    const goal_usd     = searchParams.get('goal_usd');
+    const duration_days = searchParams.get('duration_days');
+    if (!category && !goal_usd && !duration_days) return undefined;
+    return {
+      ...(category      ? { category }                                                       : {}),
+      ...(goal_usd      ? { goal_usd: Number(goal_usd) }                                    : {}),
+      ...(duration_days ? { duration_days: Math.min(60, Math.max(1, Number(duration_days))) } : {}),
+    };
+  }, [searchParams]);
+
+  return <PredictForm onSubmit={onSubmit} loading={loading} initialValues={initialValues} />;
+}
 
 export default function PredictPage() {
   const { submit, loading, error, prediction, recommend } = usePredict();
@@ -34,7 +61,9 @@ export default function PredictPage() {
 
           {/* ซ้าย: Form */}
           <div className="space-y-4">
-            <PredictForm onSubmit={submit} loading={loading} />
+            <Suspense fallback={<PredictForm onSubmit={submit} loading={loading} />}>
+              <FormSection onSubmit={submit} loading={loading} />
+            </Suspense>
             {error && (
               <p className="text-red-500 text-sm text-center bg-red-50 rounded-xl px-4 py-3 border border-red-200">
                 {error}

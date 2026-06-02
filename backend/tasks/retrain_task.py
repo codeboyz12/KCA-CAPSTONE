@@ -19,32 +19,45 @@ AUC_THRESHOLD = 0.65
 F1_THRESHOLD  = 0.55
 
 
-def _load_data_from_db() -> pd.DataFrame:
+def _load_data_from_db() -> tuple[pd.DataFrame, pd.DataFrame]:
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute(
-        "SELECT category, goal_usd, duration_days, state_binary FROM projects;"
-    )
+
+    cur.execute("SELECT category, goal_usd, duration_days, state_binary FROM projects;")
     rows = cur.fetchall()
+    projects = pd.DataFrame(rows, columns=["category", "goal_usd", "duration_days", "state_binary"])
+
+    # use pre-computed materialized view instead of recomputing from scratch
+    cur.execute(
+        "SELECT category, success_rate, total_projects, median_goal_usd FROM category_stats;"
+    )
+    stats = pd.DataFrame(cur.fetchall(),
+                         columns=["category", "cat_success_rate", "cat_project_count", "cat_median_goal"])
+
     cur.close()
     conn.close()
-    return pd.DataFrame(rows, columns=["category", "goal_usd", "duration_days", "state_binary"])
+    return projects, stats
 
 
-def _build_train_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+def _refresh_category_stats() -> None:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY category_stats;")
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def _build_train_features(df: pd.DataFrame, stats: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     df = df.copy()
 
     df["goal_usd_log"]     = np.log1p(df["goal_usd"])
     df["goal_on_duration"] = df["goal_usd"] / (df["duration_days"] + 1)
     df["goal_per_week"]    = df["goal_usd"] / ((df["duration_days"] / 7) + 1)
 
-    cat_stats = df.groupby("category")["state_binary"].agg(["mean", "count"]).rename(
-        columns={"mean": "cat_success_rate", "count": "cat_project_count"}
-    )
-    df = df.merge(cat_stats, on="category", how="left")
-
-    cat_goals = df.groupby("category")["goal_usd"].median().rename("cat_median_goal")
-    df = df.merge(cat_goals, on="category", how="left")
+    # join pre-computed stats from materialized view
+    df = df.merge(stats, on="category", how="left")
+    df["cat_median_goal"]   = df["cat_median_goal"].fillna(df["goal_usd"].median())
     df["goal_vs_cat_median"] = df["goal_usd"] / (df["cat_median_goal"] + 1)
 
     le = LabelEncoder()
@@ -71,11 +84,11 @@ def retrain_model_task(self):
     mlflow.set_experiment("kca-classifier")
 
     self.update_state(state="STARTED", meta={"step": "loading data"})
-    df = _load_data_from_db()
+    df, stats = _load_data_from_db()
     n_samples = len(df)
 
     self.update_state(state="STARTED", meta={"step": "building features", "n_samples": n_samples})
-    X, y = _build_train_features(df)
+    X, y = _build_train_features(df, stats)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
@@ -119,10 +132,11 @@ def retrain_model_task(self):
 
     if gate_passed:
         self.update_state(state="STARTED", meta={"step": "saving model"})
-        model_path = settings.MODEL_RETRAINED
-        model.save_model(model_path)
-
+        model.save_model(settings.MODEL_RETRAINED)
         ml.resources_loaded = False
+
+    self.update_state(state="STARTED", meta={"step": "refreshing category_stats"})
+    _refresh_category_stats()
 
     return {
         "success":      True,
