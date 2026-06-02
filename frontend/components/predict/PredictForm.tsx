@@ -35,14 +35,15 @@ const DEFAULT: CampaignPayload = {
 };
 
 interface Props {
-  onSubmit: (payload: CampaignPayload) => void;
-  loading:  boolean;
+  onSubmit:      (payload: CampaignPayload) => void;
+  loading:       boolean;
+  initialValues?: Partial<CampaignPayload>;
 }
 
-export default function PredictForm({ onSubmit, loading }: Props) {
+export default function PredictForm({ onSubmit, loading, initialValues }: Props) {
   const [categories,     setCategories]     = useState<string[]>([]);
   const [mainCategories, setMainCategories] = useState<string[]>([]);
-  const [form, setForm] = useState<CampaignPayload>(DEFAULT);
+  const [form, setForm] = useState<CampaignPayload>({ ...DEFAULT, ...initialValues });
 
   const [metaError, setMetaError] = useState<string | null>(null);
 
@@ -54,8 +55,8 @@ export default function PredictForm({ onSubmit, loading }: Props) {
         setMainCategories(mainCats);
         setForm((prev) => ({
           ...prev,
-          category:      cats[0]      ?? '',
-          main_category: mainCats[0]  ?? '',
+          category:      initialValues?.category      ?? cats[0]      ?? '',
+          main_category: initialValues?.main_category ?? mainCats[0]  ?? '',
         }));
       })
       .catch(() => setMetaError('ไม่สามารถโหลดหมวดหมู่ได้ กรุณารีเฟรชหน้า'));
