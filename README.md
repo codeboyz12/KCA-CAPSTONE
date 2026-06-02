@@ -124,26 +124,26 @@ docker compose up -d
 docker compose ps
 ```
 
-### Step 2 — Import Data *(First-time only)*
+-### Step 2 — Import Data *(First-time only)*
+-
+-```bash
+-pip install psycopg2-binary pandas numpy
+-python migrate_to_db.py
+-```
+### Step 2 — Import Data & Migrate DB *(First-time only)*
 
-> **Prerequisites — large files not included in the repo**
->
-> `migrate_to_db.py` requires three files that are gitignored due to their size.
-> Place them in `backend/models/` before continuing:
->
-> | File | Size | Description |
-> |---|---|---|
-> | `historical_knowledge_base.csv` | ~15 MB | Cleaned Kickstarter dataset |
-> | `precomputed_text_embs.npy` | ~336 MB | 384-dim SentenceTransformer embeddings per project |
-> | `precomputed_struct_embs.npy` | ~3.5 MB | 2-dim structural embeddings per project |
-
+1. **Import historical data** into the database:
 ```bash
 pip install psycopg2-binary pandas numpy
 python migrate_to_db.py
 ```
 
-After migration completes, sync category references and refresh the materialized view:
+2. **Apply advanced database migrations** (adds constraints, indexes, and tables):
+```bash
+docker exec kca-postgres psql -U kca_admin -d kca_database -f /docker-entrypoint-initdb.d/02-advanced.sql
+```
 
+3. **Sync category references and refresh statistics** (run this after importing data or whenever categories change):
 ```bash
 docker exec kca-postgres psql -U kca_admin -d kca_database -c "
 INSERT INTO categories (name)
@@ -158,6 +158,7 @@ UPDATE projects p
 REFRESH MATERIALIZED VIEW category_stats;
 "
 ```
+
 
 ### Step 3 — Access the Application
 
