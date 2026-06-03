@@ -9,8 +9,6 @@ CREATE TABLE IF NOT EXISTS projects (
     goal_usd FLOAT,
     duration_days INT,
     state_binary INT,
-    -- คอลัมน์พิเศษสำหรับเก็บ Vector 384 มิติ (จาก SentenceTransformer)
-    text_embedding vector(384),
-    -- คอลัมน์สำหรับเก็บ Vector 2 มิติ (เป้าเงินและเวลาที่ Scale แล้ว)
-    struct_embedding vector(2)
+    -- Unified 384-dim embedding: encodes name + main_category + category + goal + duration
+    text_embedding vector(384)
 );

@@ -7,10 +7,9 @@ class Settings(BaseSettings):
     DB_HOST:     str = "db"
     DB_PORT:     int = 5432
 
-    MODEL_CLASSIFIER:       str = "models/kca_classifier_v2.pkl"
+    MODEL_CLASSIFIER:         str = "models/kca_classifier_v2.pkl"
     MODEL_PIPELINE_ARTIFACTS: str = "models/pipeline_artifacts.pkl"
-    MODEL_SCALER:           str = "models/structural_scaler.pkl"
-    SENTENCE_MODEL:   str = "all-MiniLM-L6-v2"
+    SENTENCE_MODEL:           str = "all-MiniLM-L6-v2"
 
     CORS_ORIGINS: list[str] = ["*"]
 

@@ -77,9 +77,6 @@ CREATE INDEX IF NOT EXISTS idx_projects_text_embedding_hnsw
     ON projects USING hnsw (text_embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
-CREATE INDEX IF NOT EXISTS idx_projects_struct_embedding_hnsw
-    ON projects USING hnsw (struct_embedding vector_cosine_ops)
-    WITH (m = 16, ef_construction = 64);
 
 -- -------------------------------------------------------------
 -- 5. MATERIALIZED VIEW — category statistics

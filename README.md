@@ -127,18 +127,39 @@ docker compose ps
 
 ### Step 2 — Import Data & Migrate DB *(First-time only)*
 
+> **Prerequisites — large files not included in the repo**
+>
+> `migrate_to_db.py` requires two files that are gitignored due to their size.
+> Place them in `backend/models/` before continuing:
+>
+> | File | Size | Description |
+> |---|---|---|
+> | `historical_knowledge_base.csv` | ~15 MB | Cleaned Kickstarter dataset |
+> | `precomputed_text_embs_v2.npy` | ~336 MB | Unified 384-dim embeddings (name + category + goal + duration) |
+>
+> **Don't have `precomputed_text_embs_v2.npy`?** Generate it from the raw dataset (containers must be running, `notebook/final_data_capstone_new.csv` must exist, ~25 min on CPU):
+>
+> ```bash
+> docker cp notebook/final_data_capstone_new.csv kca-ml-api:/tmp/final_data_capstone_new.csv
+> docker cp recompute_text_embs.py kca-ml-api:/tmp/recompute_text_embs.py
+> docker exec kca-ml-api python3 /tmp/recompute_text_embs.py
+> ```
+
 1. **Import historical data** into the database:
+
 ```bash
 pip install psycopg2-binary pandas numpy
 python migrate_to_db.py
 ```
 
 2. **Apply advanced database migrations** (adds constraints, indexes, and tables):
+
 ```bash
 docker exec kca-postgres psql -U kca_admin -d kca_database -f /docker-entrypoint-initdb.d/02-advanced.sql
 ```
 
-3. **Sync category references and refresh statistics** (run this after importing data or whenever categories change):
+3. **Sync category references and refresh statistics:**
+
 ```bash
 docker exec kca-postgres psql -U kca_admin -d kca_database -c "
 INSERT INTO categories (name)
