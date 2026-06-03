@@ -12,6 +12,7 @@ from sklearn.preprocessing import LabelEncoder
 
 from celery_app import celery_app
 from core.config import settings
+from core import cache
 from db.session import get_db_connection
 from ml.state import ml
 
@@ -134,6 +135,7 @@ def retrain_model_task(self):
         self.update_state(state="STARTED", meta={"step": "saving model"})
         model.save_model(settings.MODEL_RETRAINED)
         ml.resources_loaded = False
+        cache.flush()  # new model → old predictions are stale
 
     self.update_state(state="STARTED", meta={"step": "refreshing category_stats"})
     _refresh_category_stats()

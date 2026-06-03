@@ -13,8 +13,10 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["*"]
 
-    CELERY_BROKER_URL: str = "redis://redis:6379/0"
+    CELERY_BROKER_URL:    str = "redis://redis:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
+    REDIS_CACHE_URL:      str = "redis://redis:6379/2"
+    PREDICT_CACHE_TTL:    int = 86400  # seconds — invalidated by retrain
 
     MLFLOW_TRACKING_URI: str = "http://mlflow:5000"
     MODEL_RETRAINED: str = "models/kca_classifier_retrained.cbm"
