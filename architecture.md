@@ -1,176 +1,275 @@
 # KCA System Architecture
 
+> **View / edit the diagram live:**
+> Paste the Mermaid block below into **[mermaid.live](https://mermaid.live)** or any Mermaid-compatible renderer (GitHub, VS Code Markdown Preview Enhanced, Notion, Confluence).
+
 ```mermaid
 graph TB
-    subgraph Client["Client Layer"]
-        USER["👤 User Browser"]
+    %% ── Client ──────────────────────────────────────────────────
+    USER(["👤 Browser"])
+
+    %% ── Frontend ─────────────────────────────────────────────────
+    subgraph FE["Frontend  ·  Next.js 16 / React 19 / Tailwind  (port 3000)"]
+        LANDING["🏠 Landing Page
+        Project list · Search · Detail modal"]
+        PREDICT_UI["🚀 Predict Page
+        Campaign form · Result · Similar projects"]
     end
 
-    subgraph Frontend["Frontend — Next.js 16 / React 19 / Tailwind CSS  (Port 3000)"]
+    %% ── ML API ───────────────────────────────────────────────────
+    subgraph API["ML Backend API  ·  FastAPI / Python 3.10  (port 8000)"]
         direction TB
-        LANDING["Landing Page\nProject list · Semantic search · Detail modal"]
-        PREDICT_UI["Predict Page\nCampaign form · Result card · Similar projects"]
-    end
 
-    subgraph API["ML Backend API — FastAPI / Python 3.10  (Port 8000)"]
-        direction TB
-        subgraph Browse["Data Browsing"]
-            PROJECTS["/api/v1/projects\nPaginated list"]
-            SEARCH["/api/v1/search\nSemantic vector search\n+ lru_cache(256)"]
-            STATS["/api/v1/stats/categories\n/api/v1/stats/predictions"]
-            META["/api/v1/metadata\n/api/v1/metadata/main-categories"]
+        subgraph BROWSE["Browse"]
+            PROJECTS["/projects  paginated list"]
+            SEARCH["/search  HNSW semantic
+            lru_cache 256 on embed"]
+            STATS["/stats/categories
+            /stats/predictions"]
+            META["/metadata
+            /metadata/main-categories"]
         end
-        subgraph Inference["ML Inference"]
-            PREDICT["/api/v1/predict\nSync & Async"]
-            RECOMMEND["/api/v1/recommend\nStructural + semantic match"]
+
+        subgraph INFER["Inference"]
+            PREDICT["/predict  sync + async
+            ✅ Redis cache DB 2"]
+            RECOMMEND["/recommend  HNSW re-score"]
         end
-        subgraph Ops["Operations"]
-            RETRAIN["/api/v1/admin/retrain\nTrigger job"]
-            JOBS["/api/v1/jobs/{task_id}\nPoll status"]
+
+        subgraph OPS["Operations"]
+            RETRAIN["/admin/retrain  enqueue job"]
+            JOBS["/jobs/{task_id}  poll status"]
         end
-        EMBEDDER["SentenceTransformer\nall-MiniLM-L6-v2\n(shared, loaded once)"]
-        CATBOOST["CatBoost Classifier\n+ SHAP Explainer\n+ Feature Pipeline"]
+
+        EMBEDDER(["SentenceTransformer
+        all-MiniLM-L6-v2
+        shared · loaded once"])
+        CATBOOST(["CatBoost Classifier
+        + SHAP Explainer
+        + Feature Pipeline"])
     end
 
-    subgraph Queue["Task Queue — Celery 5.4"]
-        WORKER["Celery Worker\nML Inference (async)\nModel Retraining"]
+    %% ── Celery Worker ────────────────────────────────────────────
+    subgraph QUEUE["Task Queue  ·  Celery 5.4"]
+        WORKER["⚙️ Celery Worker
+        async predict · retrain"]
     end
 
-    subgraph Storage["Data Layer"]
-        PG[("PostgreSQL 15 + pgvector  (Port 5432)\n─────────────────────────────\nprojects  229k+ rows\n  text_embedding vector(384)  ← unified sentence\ncategories  FK normalisation\nprediction_log  drift audit\ncategory_stats  materialized view\n─────────────────────────────\nHNSW: text_embedding  (m=16, ef=64)\nB-tree: category · state · created_at")]
-        REDIS[("Redis 7  (Port 6379)\n─────────────────────────────\nDB 0 — Celery broker\nDB 1 — Task result backend")]
-        MLFLOW[("MLflow 2.13  (Port 5001)\n─────────────────────────────\nSQLite — run metadata\n/mlflow/artifacts — model binaries")]
+    %% ── Storage ──────────────────────────────────────────────────
+    subgraph STORE["Data Layer"]
+        PG[("🐘 PostgreSQL 15 + pgvector
+        ──────────────────
+        projects  229 k rows
+          text_embedding vector 384
+        categories  FK normalisation
+        prediction_log  drift audit
+        category_stats  mat. view
+        ──────────────────
+        HNSW  text_embedding m=16
+        B-tree  category · state
+        port 5432")]
+
+        subgraph REDIS_BOX["Redis 7  (port 6379)"]
+            RDB0[("DB 0
+            Celery broker")]
+            RDB1[("DB 1
+            Task results")]
+            RDB2[("DB 2
+            Predict cache
+            TTL 24 h")]
+        end
+
+        MLFLOW[("📊 MLflow 2.13
+        ──────────────────
+        SQLite — run metadata
+        /artifacts — model bins
+        port 5001")]
     end
 
-    %% Client to Frontend
-    USER -- "HTTP" --> LANDING
-    USER -- "HTTP" --> PREDICT_UI
+    %% ── Edges ────────────────────────────────────────────────────
 
-    %% Frontend to API
-    LANDING -- "GET /projects\nGET /search" --> Browse
-    PREDICT_UI -- "POST /predict\nPOST /recommend" --> Inference
-    PREDICT_UI -- "POST /retrain\nGET /jobs" --> Ops
+    %% Client → Frontend
+    USER -->|HTTP| LANDING
+    USER -->|HTTP| PREDICT_UI
 
-    %% Embedder used by both search and recommend
-    SEARCH -- "encode query" --> EMBEDDER
-    RECOMMEND -- "encode campaign input" --> EMBEDDER
-    EMBEDDER -- "HNSW <=> query" --> PG
+    %% Frontend → API
+    LANDING -->|"GET /projects
+    GET /search"| BROWSE
+    PREDICT_UI -->|"POST /predict
+    POST /recommend"| INFER
+    PREDICT_UI -->|"POST /retrain
+    GET /jobs"| OPS
 
-    %% Inference pipeline
-    PREDICT --> CATBOOST
-    CATBOOST -- "read features\nwrite prediction_log" --> PG
+    %% Search & Recommend → Embedder → DB
+    SEARCH -->|encode query| EMBEDDER
+    RECOMMEND -->|encode campaign| EMBEDDER
+    EMBEDDER -->|"HNSW ⟨cosine⟩"| PG
+
+    %% Predict → Cache → CatBoost → DB
+    PREDICT -->|"1 cache check"| RDB2
+    RDB2 -.->|"HIT: return cached"| PREDICT
+    PREDICT -->|"2 MISS: run inference"| CATBOOST
+    CATBOOST -->|"read features
+    write prediction_log"| PG
+    PREDICT -->|"3 cache set"| RDB2
 
     %% Stats & metadata
-    STATS -- "SELECT category_stats" --> PG
-    META -- "SELECT categories" --> PG
-    PROJECTS -- "SELECT projects" --> PG
+    STATS -->|SELECT category_stats| PG
+    META -->|SELECT categories| PG
+    PROJECTS -->|SELECT projects| PG
 
-    %% Async path
-    RETRAIN -- "enqueue" --> REDIS
-    JOBS -- "fetch result" --> REDIS
-    REDIS -- "dequeue" --> WORKER
-    WORKER -- "load training data" --> PG
-    WORKER -- "log metrics / save model" --> MLFLOW
-    WORKER -- "store result" --> REDIS
+    %% Async predict path (Celery)
+    PREDICT -->|"async_mode=true
+    enqueue task"| RDB0
+    RDB0 -->|dequeue| WORKER
+    WORKER -->|"cache check/set
+    same as sync path"| RDB2
+    WORKER -->|store result| RDB1
+    JOBS -->|fetch result| RDB1
 
-    %% Styling
-    classDef client   fill:#4A90D9,stroke:#2C5F8A,color:#fff
-    classDef frontend fill:#6C5CE7,stroke:#4A3AA8,color:#fff
+    %% Retrain path
+    RETRAIN -->|enqueue retrain| RDB0
+    WORKER -->|load training data| PG
+    WORKER -->|"log run + save model
+    quality gate AUC≥0.65 F1≥0.55"| MLFLOW
+    WORKER -->|"flush cache
+    on gate PASS"| RDB2
+
+    %% ── Styles ───────────────────────────────────────────────────
+    classDef user     fill:#4A90D9,stroke:#2C5F8A,color:#fff
+    classDef fe       fill:#6C5CE7,stroke:#4A3AA8,color:#fff
     classDef api      fill:#00B894,stroke:#007A63,color:#fff
-    classDef queue    fill:#FDCB6E,stroke:#C9A140,color:#333
+    classDef worker   fill:#FDCB6E,stroke:#C9A140,color:#333
     classDef db       fill:#E17055,stroke:#A84F37,color:#fff
+    classDef cache    fill:#D63031,stroke:#A0221E,color:#fff
 
-    class USER client
-    class LANDING,PREDICT_UI frontend
+    class USER user
+    class LANDING,PREDICT_UI fe
     class PROJECTS,SEARCH,STATS,META,PREDICT,RECOMMEND,RETRAIN,JOBS,EMBEDDER,CATBOOST api
-    class WORKER queue
-    class PG,REDIS,MLFLOW db
+    class WORKER worker
+    class PG,RDB0,RDB1,MLFLOW db
+    class RDB2 cache
 ```
 
 ---
 
 ## Request Flows
 
-### 1 — Semantic Search (Landing page search box)
+### 1 — Semantic Search
 ```
-Browser → Next.js (400ms debounce or button click)
-  → GET /api/v1/search?q=...&page=1&limit=12
+Browser  →  Next.js  (400ms debounce or button)
+         →  GET /api/v1/search?q=...&page=1&limit=12
 
 FastAPI:
-  lru_cache(256): if query seen before → skip model, return cached vector
-  else: SentenceTransformer.encode(query)  ~20ms
-  → pgvector HNSW cosine search (text_embedding <=>)  ~5ms
-  → paginate top-120 results in Python
-  → return ProjectsResponse (same shape as /projects)
+  lru_cache(256): same query string? → return cached vector (skip model)
+  else: SentenceTransformer.encode(query)       ~20 ms
+  → pgvector HNSW cosine search (text_embedding <=>)   ~5 ms
+  → paginate top-120 in Python
+  → return { success, data[], pagination }
 ```
 
-### 2 — Synchronous Prediction
+### 2 — Synchronous Prediction  *(with Redis cache)*
 ```
-Browser → Next.js → POST /api/v1/predict
-
-FastAPI:
-  → Feature engineering (build_features)
-  → CatBoost inference  →  prob_success, is_viable
-  → CatBoost native SHAP  →  top-5 feature impacts
-  → category_stats lookup  →  success_rate, median_goal, competition
-  → write prediction_log → PostgreSQL
-  → return enriched result
-```
-
-### 3 — Similar Campaign Recommendations
-```
-Browser → Next.js → POST /api/v1/recommend
+Browser  →  POST /api/v1/predict
 
 FastAPI:
-  → Build canonical sentence:
-      "{name}. A {main_category} Kickstarter project in the {category}
-       subcategory, with a ${goal_usd} funding goal and a {duration_days}-day
-       campaign."
-  → SentenceTransformer.encode(sentence)  →  384-dim query vector
+  key = SHA-256(sorted payload)[:16]
+  ┌─ Redis DB 2 HIT  →  return cached result immediately   ~11 ms
+  └─ Redis DB 2 MISS
+       → build_features (50+ engineered features)
+       → CatBoost inference    prob_success, is_viable
+       → CatBoost SHAP         top-5 feature impacts
+       → category_stats lookup success_rate, median_goal, competition tier
+       → write prediction_log  → PostgreSQL
+       → cache.set(key, result, ttl=24h)
+       → return enriched result                           ~200 ms
+```
+
+### 3 — Asynchronous Prediction  *(Celery + cache)*
+```
+Browser  →  POST /api/v1/predict?async_mode=true
+         →  FastAPI enqueues task  →  Redis DB 0
+         →  return { task_id }
+
+Browser polls GET /api/v1/jobs/{task_id}  →  Redis DB 1
+
+Celery Worker (predict_campaign_task):
+  key = SHA-256(sorted payload)[:16]
+  ┌─ Redis DB 2 HIT  →  store cached result in DB 1  (fast)
+  └─ Redis DB 2 MISS →  full inference (same as sync path above)
+                      →  cache.set + store in DB 1
+```
+
+### 4 — Similar Campaign Recommendations
+```
+Browser  →  POST /api/v1/recommend
+
+FastAPI:
+  sentence = "{name}. A {main_category} Kickstarter project in the
+              {category} subcategory, with a ${goal_usd:,.0f} funding
+              goal and a {duration_days}-day campaign."
+  → SentenceTransformer.encode(sentence)   →  384-dim vector
   → pgvector HNSW fetch top-100 by cosine distance
-  → re-score each result:
-      score = 0.6 × cosine_sim + 0.2 × category_match + 0.2 × category_prior
+  → re-score:  0.6 × cosine_sim + 0.2 × category_match + 0.2 × prior
   → return top-k sorted by score
 ```
 
-### 4 — Asynchronous Retraining (MLOps)
+### 5 — Asynchronous Retraining  *(MLOps)*
 ```
-Browser → POST /api/v1/admin/retrain
-  → FastAPI enqueues Celery task → Redis DB 0
-  → return { task_id }
+Browser  →  POST /api/v1/admin/retrain
+         →  FastAPI enqueues Celery task  →  Redis DB 0
+         →  return { task_id }
 
-Browser polls GET /api/v1/jobs/{task_id}
-  → Redis DB 1 returns { status, result }
+Browser polls GET /api/v1/jobs/{task_id}  →  Redis DB 1
 
-Celery Worker:
-  → Load all projects from PostgreSQL
-  → Feature engineering (50+ features)
-  → Train CatBoost model
-  → Quality gate: AUC ≥ 0.65  AND  F1 ≥ 0.55
-      PASS → save model artifact + log run → MLflow
-      FAIL → keep current model, log failed run
-  → Write result → Redis DB 1
+Celery Worker (retrain_task):
+  → load all projects from PostgreSQL
+  → feature engineering (50+ features)
+  → train CatBoost model
+  → quality gate:
+      AUC ≥ 0.65  AND  F1 ≥ 0.55
+      ├─ PASS  →  save model artifact
+      │          →  log run + metrics  →  MLflow
+      │          →  cache.flush()  (Redis DB 2 wiped — new model, stale predictions)
+      └─ FAIL  →  keep current model, log failed run
+  → store result  →  Redis DB 1
 ```
 
 ---
 
 ## Embedding Design
 
-All vector search (both `/search` and `/recommend`) uses **one column: `text_embedding vector(384)`**.
+All vector search — both `/search` and `/recommend` — uses **one column: `text_embedding vector(384)`**.
 
-Projects are embedded at ingest time using the canonical sentence template:
-
+**Ingest-time template** (run by `recompute_text_embs.py`):
 ```
 "{name}. A {main_category} Kickstarter project in the {category} subcategory,
  with a ${goal_usd:,.0f} funding goal and a {duration_days}-day campaign."
 ```
 
-At query time:
-- **`/search`**: raw query string is embedded and matched against `text_embedding`
-- **`/recommend`**: user's campaign form data is converted with the same template and matched
+**Query-time:**
 
-Both use the same HNSW index — no separate struct/text split.
-To regenerate embeddings: run `recompute_text_embs.py` inside the API container.
+| Endpoint | Input | How embedded |
+|---|---|---|
+| `/search` | raw text query | embed as-is |
+| `/recommend` | full campaign form | same sentence template |
+
+Both queries hit the same HNSW index — no separate struct/text split.
+To regenerate: `docker exec kca-ml-api python3 /tmp/recompute_text_embs.py`
+
+---
+
+## Predict Cache Design
+
+| Property | Value |
+|---|---|
+| Store | Redis DB 2 (separate from Celery broker DB 0 and results DB 1) |
+| Key | `predict:` + SHA-256(sorted JSON payload)[:16] |
+| TTL | 24 hours (configurable via `PREDICT_CACHE_TTL` env) |
+| Invalidation | `cache.flush()` called automatically after quality-gate PASS in retrain |
+| Degradation | If Redis unavailable, silently skips cache — API continues serving |
+| Coverage | Sync `/predict` + async Celery `predict_campaign_task` |
+| Observed speedup | ~200 ms (MISS) → ~11 ms (HIT) |
 
 ---
 
@@ -178,11 +277,11 @@ To regenerate embeddings: run `recompute_text_embs.py` inside the API container.
 
 | Page | Component | Responsibility |
 |---|---|---|
-| `/` | `HeroSection` | Search box (400ms debounce + button) |
-| `/` | `ProjectGrid` + `ProjectRow` | Paginated project table |
+| `/` | `HeroSection` | Search box — 400ms debounce + button/Enter submit |
+| `/` | `ProjectGrid` + `ProjectRow` | Paginated project table with stable keys |
 | `/` | `ProjectDetailModal` | Category benchmarks + "Use as Template" CTA |
 | `/` | `ActionMenu` | Link to predictor |
-| `/predict` | `PredictForm` | Campaign input form (pre-fills from URL params) |
+| `/predict` | `PredictForm` | Campaign form — pre-fills from `?category=&goal_usd=&duration_days=` |
 | `/predict` | `PredictResult` | Score · SHAP bars · category stats · competition badge |
 | `/predict` | `SimilarProjects` | Recommendation cards from `/recommend` |
 
@@ -190,36 +289,37 @@ To regenerate embeddings: run `recompute_text_embs.py` inside the API container.
 
 ## Services & Ports
 
-| Service | Image / Stack | Port | Purpose |
+| Service | Stack | Port | Purpose |
 |---|---|---|---|
 | `frontend` | Node 20 / Next.js 16 | 3000 | Web UI |
 | `kca-ml-api` | Python 3.10 / FastAPI | 8000 | REST API + ML inference |
-| `kca-ml-worker` | Python 3.10 / Celery | — | Async task execution |
+| `kca-ml-worker` | Python 3.10 / Celery 5.4 | — | Async predict + retrain |
 | `kca-postgres` | PostgreSQL 15 + pgvector | 5432 | Primary data store + vector DB |
-| `kca-redis` | Redis 7 alpine | 6379 | Broker (DB 0) + results (DB 1) |
+| `kca-redis` | Redis 7 alpine | 6379 | DB 0 broker · DB 1 results · DB 2 predict cache |
 | `kca-mlflow` | MLflow 2.13 | 5001 | Experiment tracking + model registry |
 
 ---
 
 ## Key Data Stores
 
-| Store | Type | Key Detail |
+| Store | Type | Detail |
 |---|---|---|
-| `projects` | Table | 229k+ campaigns; `text_embedding vector(384)` — unified sentence embedding |
+| `projects` | Table | 229 k+ rows; `text_embedding vector(384)` unified sentence vector |
 | `categories` | Table | FK normalisation; `main_category` field |
-| `prediction_log` | Table | Every `/predict` call logged — feeds drift monitoring |
+| `prediction_log` | Table | Every `/predict` call — feeds drift monitoring |
 | `category_stats` | Materialized View | Pre-aggregated success rates, median goals, avg durations |
-| HNSW index on `text_embedding` | Index (pgvector) | `m=16, ef_construction=64` — sub-10ms cosine search on 229k rows |
-| Redis DB 0 | Queue | Celery task broker |
-| Redis DB 1 | KV Store | Celery result backend (TTL-based) |
-| MLflow artifacts | File store | CatBoost model binaries (`/mlflow/artifacts`) |
+| HNSW on `text_embedding` | pgvector index | `m=16, ef_construction=64` — sub-10 ms cosine search on 229 k rows |
+| Redis DB 0 | Celery broker | Task queue |
+| Redis DB 1 | Celery results | TTL-based result storage |
+| Redis DB 2 | Predict cache | `predict:<sha256>` keys · TTL 24 h · flushed after retrain |
+| MLflow artifacts | File store | CatBoost binaries under `/mlflow/artifacts` |
 
 ---
 
-## ML Models Loaded at Startup
+## ML Models Loaded at API Startup
 
 | Model | File | Used by |
 |---|---|---|
 | CatBoost classifier | `kca_classifier_v2.pkl` | `/predict` |
 | Feature pipeline artifacts | `pipeline_artifacts.pkl` | `/predict` |
-| SentenceTransformer `all-MiniLM-L6-v2` | Downloaded from HuggingFace | `/search`, `/recommend` |
+| SentenceTransformer `all-MiniLM-L6-v2` | HuggingFace (cached) | `/search`, `/recommend` |
