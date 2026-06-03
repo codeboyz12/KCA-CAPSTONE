@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Next.js-14+-000000?style=flat&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-16+-000000?style=flat&logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)](https://docker.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io)
@@ -42,7 +42,7 @@
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **[Next.js 14](https://nextjs.org)** — React framework with App Router
+- **[Next.js 16](https://nextjs.org)** — React framework with App Router
 - **[Tailwind CSS](https://tailwindcss.com)** — Utility-first CSS framework
 
 ### Backend
@@ -124,12 +124,36 @@ docker compose up -d
 docker compose ps
 ```
 
-### Step 2 — Import Data *(First-time only)*
 
+### Step 2 — Import Data & Migrate DB *(First-time only)*
+
+1. **Import historical data** into the database:
 ```bash
 pip install psycopg2-binary pandas numpy
 python migrate_to_db.py
 ```
+
+2. **Apply advanced database migrations** (adds constraints, indexes, and tables):
+```bash
+docker exec kca-postgres psql -U kca_admin -d kca_database -f /docker-entrypoint-initdb.d/02-advanced.sql
+```
+
+3. **Sync category references and refresh statistics** (run this after importing data or whenever categories change):
+```bash
+docker exec kca-postgres psql -U kca_admin -d kca_database -c "
+INSERT INTO categories (name)
+  SELECT DISTINCT category FROM projects
+  ON CONFLICT (name) DO NOTHING;
+
+UPDATE projects p
+  SET category_id = c.category_id
+  FROM categories c
+  WHERE p.category = c.name;
+
+REFRESH MATERIALIZED VIEW category_stats;
+"
+```
+
 
 ### Step 3 — Access the Application
 
@@ -147,9 +171,14 @@ python migrate_to_db.py
 |---|---|---|
 | `GET` | `/api/v1/health` | Health check |
 | `GET` | `/api/v1/metadata` | Available categories |
+| `GET` | `/api/v1/metadata/main-categories` | Available main categories |
+| `GET` | `/api/v1/projects` | Paginated project list (`?page=&limit=`) |
+| `GET` | `/api/v1/search` | Semantic vector search (`?q=&page=&limit=`) |
+| `GET` | `/api/v1/stats/categories` | Category success rate & goal stats (materialized view) |
+| `GET` | `/api/v1/stats/predictions` | Recent prediction log |
 | `POST` | `/api/v1/predict` | Predict campaign success (sync) |
 | `POST` | `/api/v1/predict?async_mode=true` | Queue prediction as Celery job |
-| `POST` | `/api/v1/recommend` | Similar campaigns (sync) |
+| `POST` | `/api/v1/recommend` | Similar campaigns via vector search (sync) |
 | `POST` | `/api/v1/recommend?async_mode=true` | Queue recommendation job |
 | `GET` | `/api/v1/jobs/{task_id}` | Poll job status / result |
 | `POST` | `/api/v1/admin/retrain` | Trigger model retraining |
@@ -227,6 +256,9 @@ cd frontend && npm install && npm run dev
 - [x] CatBoost model upgrade
 - [x] Async job queue (Celery + Redis)
 - [x] MLOps retraining pipeline with MLflow
+- [x] Semantic search with HNSW vector index
+- [x] Project detail modal with category benchmarks
+- [x] SHAP feature importance in prediction results
 - [ ] Scheduled auto-retrain (Celery beat)
 - [ ] Campaign category breakdown charts
 - [ ] Export prediction report as PDF
